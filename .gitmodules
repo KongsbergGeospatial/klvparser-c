@@ -1,0 +1,3 @@
+[submodule "src/libklv"]
+	path = src/libklv
+	url = git@github.com:akrutsinger/libklv.git
