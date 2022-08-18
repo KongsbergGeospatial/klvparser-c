@@ -32,25 +32,29 @@ int main(int argc, char **argv) {
     rewind(stdin);
     binary = readData(stdin, data_size);
   }
-  klv_ctx_t *context = libklv_init();
-  context->buffer = binary;
-  context->buffer_size = data_size;
-  context->buf_ptr = binary;
-  context->buf_end = &binary[data_size];
+  if(binary) {
+    klv_ctx_t *context = libklv_init();
+    context->buffer = binary;
+    context->buffer_size = data_size;
+    context->buf_ptr = binary;
+    context->buf_end = &binary[data_size];
 
-  int result = libklv_parse_data(binary, data_size, context);
+    int result = libklv_parse_data(binary, data_size, context);
 
-  printf("Done!\n");
+    printf("Done!\n");
 
-  libklv_cleanup(context);
+    libklv_cleanup(context);
 
-  return 0;
+    return result;
+  }
+
+  return EXIT_SUCCESS;
 }
 
 uint8_t *readData(FILE *in, size_t size) {
   if (in) {
 
-    char *buffer = malloc((sizeof(char)) * size);
+    uint8_t *buffer = malloc((sizeof(char)) * size);
     for (size_t i = 0; i < size; i++) {
       fread(buffer + i, 1, 1, in);
     }

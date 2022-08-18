@@ -4,6 +4,8 @@
 #include <stdint.h>
 #include <stdbool.h>
 #include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
 
 #include "list.h"
 
@@ -40,20 +42,6 @@ typedef struct klv_ctx_s
     uint16_t    checksum;   /* store checksum retrieved from packet (not calculated) */
 } klv_ctx_t;
 
-
-/*
- * Local prototypes
- */
-static uint64_t klv_get_ber_length(klv_ctx_t *p);
-static int decode_klv_values(klv_item_t *item, klv_ctx_t *klv_ctx);
-static double libklv_map_val(double value, double a, double b, double targetA, double targetB);
-static int sync_to_klv_key(uint8_t *p, uint16_t len, klv_ctx_t *klv_ctx);
-static inline uint64_t libklv_readUINT64(klv_ctx_t *p);
-static inline uint32_t libklv_readUINT32(klv_ctx_t *p);
-static inline uint16_t libklv_readUINT16(klv_ctx_t *p);
-static inline uint8_t libklv_readUINT8(klv_ctx_t *p);
-static char *libklv_strdup(klv_ctx_t *src, uint8_t len);
-static bool has_valid_checksum(klv_ctx_t *ctx);
 /*
  * Global prototypes
  */
