@@ -1,4 +1,5 @@
 #include "libklv.h"
+#include <time.h>
 
 /*
  * Local prototypes
@@ -6,7 +7,7 @@
 static uint64_t klv_get_ber_length(klv_ctx_t *p);
 static int decode_klv_values(klv_item_t *item, klv_ctx_t *klv_ctx);
 static double libklv_map_val(double value, double a, double b, double targetA, double targetB);
-static int sync_to_klv_key(uint8_t *p, uint16_t len, klv_ctx_t *klv_ctx);
+static int sync_to_klv_key(klv_ctx_t *klv_ctx);
 static inline uint64_t libklv_readUINT64(klv_ctx_t *p);
 static inline uint32_t libklv_readUINT32(klv_ctx_t *p);
 static inline uint16_t libklv_readUINT16(klv_ctx_t *p);
@@ -127,189 +128,214 @@ static int decode_klv_values(klv_item_t *item, klv_ctx_t *klv_ctx) {
   case 0x01: /* misb std 0601 checksum */
     item->value = libklv_readUINT16(klv_ctx);
     klv_ctx->checksum = item->value;
-    printf("  0x%02X (checksum):\t%d\n", item->id, item->value);
+    printf("\"%d\": [\"checksum\", \"%ld\"]", item->id, item->value);
+    printf("}\n");
+    if (sync_to_klv_key(klv_ctx) < 0) {
+      return -1;
+    }
+    klv_ctx->payload_len = klv_get_ber_length(klv_ctx);
+    if (klv_ctx->buf_ptr < klv_ctx->buf_end) {
+      printf("{");
+    }
     break;
   case 0x02: /* unix time stamp */
     /* microseconds since 00:00:00:00, January 1st 1970 */
     item->value = libklv_readUINT64(klv_ctx);
-    printf("  0x%02X (unix epoch):\t%llu\n", item->id, item->value);
+
+    // Format as ISO8601 Date String
+    struct timespec ts;
+    // Extract milliseconds from date
+    timespec_get(&ts, TIME_UTC);
+    uint milliseconds = (item->value % 1000000) / 1000;
+    ts.tv_sec = item->value / 1000000;
+    ts.tv_nsec = milliseconds * 1000000;
+
+    char *time_string = (char *)calloc(ISO_STRING_LEN * sizeof(char), ISO_STRING_LEN * sizeof(char));
+    char *ms_string = (char *)calloc(5 * sizeof(char), 5 * sizeof(char));
+    sprintf(ms_string, ".%dZ", milliseconds);
+    strftime(time_string, ISO_STRING_LEN, "%FT%T", gmtime(&ts.tv_sec));
+    strncat(time_string, ms_string, 5);
+
+    printf("\"%d\": [\"unix epoch\", \"%s\"], ", item->id, time_string);
+    free(ms_string);
+    free(time_string);
     break;
   case 0x03: /* mission id */
     item->data = libklv_strdup(klv_ctx, item->len);
-    printf("  0x%02X (mission id):\t%s\n", item->id, item->data);
+    printf("\"%d\": [\"mission id\", \"%s\"], ", item->id, item->data);
     break;
   case 0x04: /* platform tail number */
     item->data = libklv_strdup(klv_ctx, item->len);
-    printf("  0x%02X (tail number):\t%s\n", item->id, item->data);
+    printf("\"%d\": [\"tail number\", \"%s\"], ", item->id, item->data);
     break;
   case 0x05: /* platform heading angle */
     item->value = libklv_readUINT16(klv_ctx);
     /* Map 0..(2^16-1) to 0..360 */
     item->mapped_val = libklv_map_val((double)item->value, 0.0, 65535.0, 0.0, 360.0);
-    printf("  0x%02X (platform heading ang):\t%.15f\n", item->id, item->mapped_val);
+    printf("\"%d\": [\"platform heading ang\", \"%.15f\"], ", item->id, item->mapped_val);
     break;
   case 0x06: /* platform pitch angle */
     item->signed_val = libklv_readINT16(klv_ctx);
     /* Map -(2^15-1)..(2^15-1) to +/-20 */
     item->mapped_val = libklv_map_val((double)item->signed_val, -32767.0, 32767.0, -20.0, 20.0);
-    printf("  0x%02X (platform pitch angle):\t%.12f\n", item->id, item->mapped_val);
+    printf("\"%d\": [\"platform pitch angle\", \"%.12f\"], ", item->id, item->mapped_val);
     break;
   case 0x07: /* platform roll angle */
     item->signed_val = libklv_readINT16(klv_ctx);
     /* Map -(2^15-1)..(2^15-1) to +/-50 */
     item->mapped_val = libklv_map_val((double)item->signed_val, -32767.0, 32767.0, -50.0, 50.0);
-    printf("  0x%02X (platform roll angle):\t%.12f\n", item->id, item->mapped_val);
+    printf("\"%d\": [\"platform roll angle\", \"%.12f\"], ", item->id, item->mapped_val);
     break;
   case 0x08: /* platform true airspeed */
     /* 0..255 */
     item->value = libklv_readUINT8(klv_ctx);
-    printf("  0x%02X (platform true airspeed):\t%d\n", item->id, item->value);
+    printf("\"%d\": [\"platform true airspeed\", \"%d\"], ", item->id, item->value);
     break;
   case 0x09: /* platform indicated airspeed */
     /* 0..255 */
     item->value = libklv_readUINT8(klv_ctx);
-    printf("  0x%02X (platform indicated speed):\t%d\n", item->id, item->value);
+    printf("\"%d\": [\"platform indicated speed\", \"%d\"], ", item->id, item->value);
     break;
   case 0x0A: /* platform designation */
     item->data = libklv_strdup(klv_ctx, item->len);
-    printf("  0x%02X (platform designation):\t%s\n", item->id, item->data);
+    printf("\"%d\": [\"platform designation\", \"%s\"], ", item->id, item->data);
     break;
   case 0x0B: /* image source sensor */
     item->data = libklv_strdup(klv_ctx, item->len);
-    printf("  0x%02X (image source sensor):\t%s\n", item->id, item->data);
+    printf("\"%d\": [\"image source sensor\", \"%s\"], ", item->id, item->data);
     break;
   case 0x0C: /* image coordinate system */
     item->data = libklv_strdup(klv_ctx, item->len);
-    printf("  0x%02X (coordinate system):\t%s\n", item->id, item->data);
+    printf("\"%d\": [\"coordinate system\", \"%s\"], ", item->id, item->data);
     break;
   case 0x0D: /* sensor latitude */
     item->signed_val = libklv_readINT32(klv_ctx);
     /* Map -(2^31-1)..(2^31-1) to +/-90 */
     item->mapped_val = libklv_map_val((double)item->signed_val, -2147483647.0, 2147483647.0, -90.0, 90.0);
-    printf("  0x%02X (sensor latitude):\t%.14f\n", item->id, item->mapped_val);
+    printf("\"%d\": [\"sensor latitude\", \"%.14f\"], ", item->id, item->mapped_val);
     break;
   case 0x0E: /* sensor longitude */
     item->signed_val = libklv_readINT32(klv_ctx);
     /* Map -(2^31-1)..(2^31-1) to +/-180 */
     item->mapped_val = libklv_map_val((double)item->signed_val, -2147483647.0, 2147483647.0, -180.0, 180.0);
-    printf("  0x%02X (sensor longitude):\t%.14f\n", item->id, item->mapped_val);
+    printf("\"%d\": [\"sensor longitude\", \"%.14f\"], ", item->id, item->mapped_val);
     break;
   case 0x0F: /* sensor true altitude */
     item->value = libklv_readUINT16(klv_ctx);
     /* Map 0..(2^16-1) to -900..19,000 */
     item->mapped_val = libklv_map_val((double)item->value, 0.0, 65535.0, -900.0, 19000.0);
-    printf("  0x%02X (sensor true altitude):\t%.12f\n", item->id, item->mapped_val);
+    printf("\"%d\": [\"sensor true altitude\", \"%.12f\"], ", item->id, item->mapped_val);
     break;
   case 0x10: /* sensor horizontal field of view */
     item->value = libklv_readUINT16(klv_ctx);
     /* Map 0..(2^16-1) to 0..180 */
     item->mapped_val = libklv_map_val((double)item->value, 0.0, 65535.0, 0.0, 180.0);
-    printf("  0x%02X (sensor horizontal FOV):\t%.15f\n", item->id, item->mapped_val);
+    printf("\"%d\": [\"sensor horizontal FOV\", \"%.15f\"], ", item->id, item->mapped_val);
     break;
   case 0x11: /* sensor vertical field of view */
     item->value = libklv_readUINT16(klv_ctx);
     /* Map 0..(2^16-1) to 0..180 */
     item->mapped_val = libklv_map_val((double)item->value, 0.0, 65535.0, 0.0, 180.0);
-    printf("  0x%02X (sensor vertical FOV):\t%.15f\n", item->id, item->mapped_val);
+    printf("\"%d\": [\"sensor vertical FOV\", \"%.15f\"], ", item->id, item->mapped_val);
     break;
   case 0x12: /* sensor relative azimuth angle */
     item->value = libklv_readUINT32(klv_ctx);
     /* Map 0..(2^32-1) to 0..360 */
     item->mapped_val = libklv_map_val((double)item->value, 0.0, 4294967295.0, 0.0, 360.0);
-    printf("  0x%02X (sensor rel az ang):\t%.14f\n", item->id, item->mapped_val);
+    printf("\"%d\": [\"sensor rel az ang\", \"%.14f\"], ", item->id, item->mapped_val);
     break;
   case 0x13: /* sensor relative elevation angle */
     item->signed_val = libklv_readINT32(klv_ctx);
     /* Map -(2^31-1)..(2^31-1) to +/-180 */
     item->mapped_val = libklv_map_val((double)item->signed_val, -2147483647.0, 2147483647.0, -180.0, 180.0);
-    printf("  0x%02X (sensor rel elev ang):\t%.14f\n", item->id, item->mapped_val);
+    printf("\"%d\": [\"sensor rel elev ang\", \"%.14f\"], ", item->id, item->mapped_val);
     break;
   case 0x14: /* sensor relative roll angle */
     item->value = libklv_readUINT32(klv_ctx);
     /* Map 0..(2^32-1) to 0..360 */
     item->mapped_val = libklv_map_val((double)item->value, 0.0, 4294967295.0, -180.0, 180.0);
-    printf("  0x%02X (sensor rel roll ang):\t%.14f\n", item->id, item->mapped_val);
+    printf("\"%d\": [\"sensor rel roll ang\", \"%.14f\"], ", item->id, item->mapped_val);
     break;
   case 0x15: /* slant range */
     item->value = libklv_readUINT32(klv_ctx);
     /* Map 0..(2^32-1) to 0..5000,000 */
     item->mapped_val = libklv_map_val((double)item->value, 0.0, 4294967295.0, 0.0, 5000000.0);
-    printf("  0x%02X (slant range):\t%.14f\n", item->id, item->mapped_val);
+    printf("\"%d\": [\"slant range\", \"%.14f\"], ", item->id, item->mapped_val);
     break;
   case 0x16: /* target width */
     item->value = libklv_readUINT16(klv_ctx);
     /* Map 0..(2^16-1) to 0..10000 */
     item->mapped_val = libklv_map_val((double)item->value, 0.0, 65535.0, 0.0, 10000.0);
-    printf("  0x%02X (target width):\t%.14f\n", item->id, item->mapped_val);
+    printf("\"%d\": [\"target width\", \"%.14f\"], ", item->id, item->mapped_val);
     break;
   case 0x17: /* frame center latitude */
     item->signed_val = libklv_readINT32(klv_ctx);
     /* Map -(2^31-1)..(2^31-1) to +/-90 */
     item->mapped_val = libklv_map_val((double)item->signed_val, -2147483647.0, 2147483647.0, -90.0, 90.0);
-    printf("  0x%02X (frame center lat):\t%.14f\n", item->id, item->mapped_val);
+    printf("\"%d\": [\"frame center lat\", \"%.14f\"], ", item->id, item->mapped_val);
     break;
   case 0x18: /* frame center longitude */
     item->signed_val = libklv_readINT32(klv_ctx);
     /* Map -(2^31-1)..(2^31-1) to +/-180 */
     item->mapped_val = libklv_map_val((double)item->signed_val, -2147483647.0, 2147483647.0, -180.0, 180.0);
-    printf("  0x%02X (frame center lon):\t%.14f\n", item->id, item->mapped_val);
+    printf("\"%d\": [\"frame center lon\", \"%.14f\"], ", item->id, item->mapped_val);
     break;
   case 0x19: /* frame center elevation */
     item->value = libklv_readUINT16(klv_ctx);
     /* Map 0..(2^16-1) to -900..19,000 */
     item->mapped_val = libklv_map_val((double)item->value, 0.0, 65535.0, -900.0, 19000.0);
-    printf("  0x%02X (frame center elev):\t%.12f\n", item->id, item->mapped_val);
+    printf("\"%d\": [\"frame center elev\", \"%.12f\"], ", item->id, item->mapped_val);
     break;
   case 0x1A: /* offset corner lat pt.1 */
     item->signed_val = libklv_readINT16(klv_ctx);
     /* Map -(2^15-1)..(2^15-1) to +/-0.075 */
     item->mapped_val = libklv_map_val((double)item->signed_val, -32767.0, 32767.0, -0.075, 0.075);
-    printf("  0x%02X (offset crnr lat 1):\t%.12f\n", item->id, item->mapped_val);
+    printf("\"%d\": [\"offset crnr lat 1\", \"%.12f\"], ", item->id, item->mapped_val);
     break;
   case 0x1B: /* offset corner lon pt.1 */
     item->signed_val = libklv_readINT16(klv_ctx);
     /* Map -(2^15-1)..(2^15-1) to +/-0.075 */
     item->mapped_val = libklv_map_val((double)item->signed_val, -32767.0, 32767.0, -0.075, 0.075);
-    printf("  0x%02X (offset crnr lon 1):\t%.12f\n", item->id, item->mapped_val);
+    printf("\"%d\": [\"offset crnr lon 1\", \"%.12f\"], ", item->id, item->mapped_val);
     break;
   case 0x1C: /* offset corner lat pt.2 */
     item->signed_val = libklv_readINT16(klv_ctx);
     /* Map -(2^15-1)..(2^15-1) to +/-0.075 */
     item->mapped_val = libklv_map_val((double)item->signed_val, -32767.0, 32767.0, -0.075, 0.075);
-    printf("  0x%02X (offset crnr lat 2):\t%.12f\n", item->id, item->mapped_val);
+    printf("\"%d\": [\"offset crnr lat 2\", \"%.12f\"], ", item->id, item->mapped_val);
     break;
   case 0x1D: /* offset corner lon pt.2 */
     item->signed_val = libklv_readINT16(klv_ctx);
     /* Map -(2^15-1)..(2^15-1) to +/-0.075 */
     item->mapped_val = libklv_map_val((double)item->signed_val, -32767.0, 32767.0, -0.075, 0.075);
-    printf("  0x%02X (offset crnr lon 2):\t%.12f\n", item->id, item->mapped_val);
+    printf("\"%d\": [\"offset crnr lon 2\", \"%.12f\"], ", item->id, item->mapped_val);
     break;
   case 0x1E: /* offset corner lat pt.3 */
     item->signed_val = libklv_readINT16(klv_ctx);
     /* Map -(2^15-1)..(2^15-1) to +/-0.075 */
     item->mapped_val = libklv_map_val((double)item->signed_val, -32767.0, 32767.0, -0.075, 0.075);
-    printf("  0x%02X (offset crnr lat 3):\t%.12f\n", item->id, item->mapped_val);
+    printf("\"%d\": [\"offset crnr lat 3\", \"%.12f\"], ", item->id, item->mapped_val);
     break;
   case 0x1F: /* offset corner lon pt.3 */
     item->signed_val = libklv_readINT16(klv_ctx);
     /* Map -(2^15-1)..(2^15-1) to +/-0.075 */
     item->mapped_val = libklv_map_val((double)item->signed_val, -32767.0, 32767.0, -0.075, 0.075);
-    printf("  0x%02X (offset crnr lon 3):\t%.12f\n", item->id, item->mapped_val);
+    printf("\"%d\": [\"offset crnr lon 3\", \"%.12f\"], ", item->id, item->mapped_val);
     break;
   case 0x20: /* offset corner lat pt.4 */
     item->signed_val = libklv_readINT16(klv_ctx);
     /* Map -(2^15-1)..(2^15-1) to +/-0.075 */
     item->mapped_val = libklv_map_val((double)item->signed_val, -32767.0, 32767.0, -0.075, 0.075);
-    printf("  0x%02X (offset crnr lat 4):\t%.12f\n", item->id, item->mapped_val);
+    printf("\"%d\": [\"offset crnr lat 4\", \"%.12f\"], ", item->id, item->mapped_val);
     break;
   case 0x21: /* offset corner lon pt.4 */
     item->signed_val = libklv_readINT16(klv_ctx);
     /* Map -(2^15-1)..(2^15-1) to +/-0.075 */
     item->mapped_val = libklv_map_val((double)item->signed_val, -32767.0, 32767.0, -0.075, 0.075);
-    printf("  0x%02X (offset crnr lon 4):\t%.12f\n", item->id, item->mapped_val);
+    printf("\"%d\": [\"offset crnr lon 4\", \"%.12f\"], ", item->id, item->mapped_val);
     break;
   case 0x22: /* icing detected */
-    printf("  0x%02X (icing detected):\t", item->id);
+    printf("\"%d\": [\"icing detected\", \"", item->id);
     item->value = libklv_readUINT8(klv_ctx);
     switch (item->value) {
     case 0:
@@ -329,140 +355,141 @@ static int decode_klv_values(klv_item_t *item, klv_ctx_t *klv_ctx) {
     item->value = libklv_readUINT16(klv_ctx);
     /* Map 0..(2^16-1) to 0..360*/
     item->mapped_val = libklv_map_val((double)item->value, 0.0, 65535.0, 0.0, 360.0);
-    printf("  0x%02X (wind direction):\t%.12f\n", item->id, item->mapped_val);
+    printf("\"%d\": [\"wind direction\", \"%.12f\"], ", item->id, item->mapped_val);
     break;
   case 0x24: /* wind speed */
     item->value = libklv_readUINT8(klv_ctx);
     /* Map 0..255 to 0..100*/
     item->mapped_val = libklv_map_val((double)item->value, 0.0, 65535.0, 0.0, 360.0);
-    printf("  0x%02X (wind speed):\t%.12f\n", item->id, item->mapped_val);
+    printf("\"%d\": [\"wind speed\", \"%.12f\"], ", item->id, item->mapped_val);
     break;
   case 0x25: /* static pressure */
     item->value = libklv_readUINT16(klv_ctx);
     /* Map 0..(2^16-1) to 0..5,000 mbar*/
     item->mapped_val = libklv_map_val((double)item->value, 0.0, 65535.0, 0.0, 5000.0);
-    printf("  0x%02X (static pressure (mbar)):\t%.12f\n", item->id, item->mapped_val);
+    printf("\"%d\": [\"static pressure (mbar)\", \"%.12f\"], ", item->id, item->mapped_val);
     break;
   case 0x26: /* density altitude */
     item->value = libklv_readUINT16(klv_ctx);
     /* Map 0..(2^16-1) to -900..19000*/
     item->mapped_val = libklv_map_val((double)item->value, 0.0, 65535.0, -900.0, 19000.0);
-    printf("  0x%02X (density altitude):\t%.12f\n", item->id, item->mapped_val);
+    printf("\"%d\": [\"density altitude\", \"%.12f\"], ", item->id, item->mapped_val);
     break;
   case 0x27: /* outside air temperature */
     item->signed_val = libklv_readINT8(klv_ctx);
-    printf("  0x%02X (outside air temp):\t%d", item->id, item->signed_val);
+    printf("\"%d\": [\"outside air temp\", \"%d", item->id, item->signed_val);
     break;
   case 0x28: /* target location latitude */
     item->signed_val = libklv_readINT32(klv_ctx);
     /* Map -(2^31-1)..(2^31-1) to +/-90 */
     item->mapped_val = libklv_map_val((double)item->signed_val, -2147483647.0, 2147483647.0, -90.0, 90.0);
-    printf("  0x%02X (target location lat):\t%.14f\n", item->id, item->mapped_val);
+    printf("\"%d\": [\"target location lat\", \"%.14f\"], ", item->id, item->mapped_val);
     break;
   case 0x29: /* target location longitude */
     item->signed_val = libklv_readINT32(klv_ctx);
     /* Map -(2^31-1)..(2^31-1) to +/-180 */
     item->mapped_val = libklv_map_val((double)item->signed_val, -2147483647.0, 2147483647.0, -180.0, 180.0);
-    printf("  0x%02X (target location lon):\t%.14f\n", item->id, item->mapped_val);
+    printf("\"%d\": [\"target location lon\", \"%.14f\"], ", item->id, item->mapped_val);
     break;
   case 0x2A: /* target location elevation */
     item->value = libklv_readUINT16(klv_ctx);
     /* Map 0..(2^16-1) to -900..19000 */
     item->mapped_val = libklv_map_val((double)item->value, 0.0, 65535.0, -900.0, 19000.0);
-    printf("  0x%02X (target location elev):\t%.14f\n", item->id, item->mapped_val);
+    printf("\"%d\": [\"target location elev\", \"%.14f\"], ", item->id, item->mapped_val);
     break;
   case 0x2B: /* target track gate width */
     item->value = libklv_readUINT8(klv_ctx);
-    printf("  0x%02X (target track gate wdth):\t%.14f\n", item->id, item->value);
+    printf("\"%d\": [\"target track gate wdth\", \"%.14f\"], ", item->id, item->value);
     break;
   case 0x2C: /* target track gate height */
     item->value = libklv_readUINT8(klv_ctx);
-    printf("  0x%02X (target track gate ht.):\t%.14f\n", item->id, item->value);
+    printf("\"%d\": [\"target track gate ht.\", \"%.14f\"], ", item->id, item->value);
     break;
   case 0x2D: /* target error estimate CE90 */
     item->value = libklv_readUINT16(klv_ctx);
-    printf("  0x%02X (target err est. CE90):\t%.14f\n", item->id, item->value);
+    printf("\"%d\": [\"target err est. CE90\", \"%.14f\"], ", item->id, item->value);
     break;
   case 0x2E: /* target error estimate LE90 */
     item->value = libklv_readUINT16(klv_ctx);
-    printf("  0x%02X (target err est. LE90):\t%.14f\n", item->id, item->value);
+    printf("\"%d\": [\"target err est. LE90\", \"%.14f\"], ", item->id, item->value);
     break;
   case 0x2F: /* generic flag data 01 */
     item->value = libklv_readUINT8(klv_ctx);
-    printf("  0x%02X (generic flag data 01):\tLaser Range: %d\n", item->id, (item->value & 0x01));
-    printf("                                     Auto-Track: %d\n", (item->value & 0x02));
-    printf("                                     IR Polarity: %d\n", (item->value & 0x04));
-    printf("                                     Icing detected: %d\n", (item->value & 0x08));
-    printf("                                     Slant Range: %d\n", (item->value & 0x10));
-    printf("                                     Image Invalid: %d\n", (item->value & 0x20));
+    printf("\"%d\": [\"generic flag data 01\", {\"Laser Range\": \"%d\",", item->id, (item->value & 0x01));
+    printf("\"Auto_Track\": \"%d\",", (item->value & 0x02));
+    printf("\"IR_Polarity\": \"%d\",", (item->value & 0x04));
+    printf("\"Icing_detected\": \"%d\",", (item->value & 0x08));
+    printf("\"Slant_Range\": \"%d\",", (item->value & 0x10));
+    printf("\"Image_Invalid\": \"%d\"", (item->value & 0x20));
+    printf("}], ");
     break;
   case 0x30: /* security local metadata set */
     item->data = malloc(item->len);
     libklv_read(item->data, klv_ctx, item->len);
-    printf("  0x%02X (sec local metadata set):\tset size=%d\n", item->id, item->len);
+    printf("\"%d\": [\"sec local metadata set\", \"set size=%d\"], ", item->id, item->len);
     break;
   case 0x31: /* differential pressure */
     item->value = libklv_readUINT16(klv_ctx);
     /* Map 0..-(2^16-1) to 0..5000 */
     item->mapped_val = libklv_map_val((double)item->value, 0.0, 65535.0, 0.0, 5000.0);
-    printf("  0x%02X (differential pressure):\t%.14f\n", item->id, item->mapped_val);
+    printf("\"%d\": [\"differential pressure\", \"%.14f\"], ", item->id, item->mapped_val);
     break;
   case 0x32: /* platform angle of attack */
     item->signed_val = libklv_readINT16(klv_ctx);
     /* Map -(2^15-1)..(2^15-1) to +/-20 */
     item->mapped_val = libklv_map_val((double)item->signed_val, -32767.0, 32767.0, -20.0, 20.0);
-    printf("  0x%02X (platform angle of atk):\t%.12f\n", item->id, item->mapped_val);
+    printf("\"%d\": [\"platform angle of atk\", \"%.12f\"], ", item->id, item->mapped_val);
     break;
   case 0x33: /* platform vertical speed */
     item->signed_val = libklv_readINT16(klv_ctx);
     /* Map -(2^15-1)..(2^15-1) to +/-180 */
     item->mapped_val = libklv_map_val((double)item->signed_val, -32767.0, 32767.0, -180.0, 180.0);
-    printf("  0x%02X (platform vert speed):\t%.12f\n", item->id, item->mapped_val);
+    printf("\"%d\": [\"platform vert speed\", \"%.12f\"], ", item->id, item->mapped_val);
     break;
   case 0x34: /* platform slideslip angle */
     item->signed_val = libklv_readINT16(klv_ctx);
     /* Map -(2^15-1)..(2^15-1) to +/-20 */
     item->mapped_val = libklv_map_val((double)item->signed_val, -32767.0, 32767.0, -20.0, 20.0);
-    printf("  0x%02X (platform slideslip ang):\t%.12f\n", item->id, item->mapped_val);
+    printf("\"%d\": [\"platform slideslip ang\", \"%.12f\"], ", item->id, item->mapped_val);
     break;
   case 0x35: /* airfieled barometric pressure */
     item->value = libklv_readUINT16(klv_ctx);
     /* Map 0..(2^16-1) to 0..5,000 mbar*/
     item->mapped_val = libklv_map_val((double)item->value, 0.0, 65535.0, 0.0, 5000.0);
-    printf("  0x%02X (airfield pressure):\t%.12f\n", item->id, item->mapped_val);
+    printf("\"%d\": [\"airfield pressure\", \"%.12f\"], ", item->id, item->mapped_val);
     break;
   case 0x36: /* airfieled elevation */
     item->value = libklv_readUINT16(klv_ctx);
     /* Map 0..(2^16-1) to -900..19,000 mbar*/
     item->mapped_val = libklv_map_val((double)item->value, 0.0, 65535.0, -900.0, 19000.0);
-    printf("  0x%02X (airfield elev):\t%.12f\n", item->id, item->mapped_val);
+    printf("\"%d\": [\"airfield elev\", \"%.12f\"], ", item->id, item->mapped_val);
     break;
   case 0x37: /* relative humidity */
     item->value = libklv_readUINT8(klv_ctx);
     /* Map 0..(2^8-1) to 0..100 */
     item->mapped_val = libklv_map_val((double)item->value, 0.0, 255.0, 0.0, 100.0);
-    printf("  0x%02X (relative humidity):\t%.12f\n", item->id, item->mapped_val);
+    printf("\"%d\": [\"relative humidity\", \"%.12f\"], ", item->id, item->mapped_val);
     break;
   case 0x38: /* platform ground speed */
     /* 0..255 */
     item->value = libklv_readUINT8(klv_ctx);
-    printf("  0x%02X (platform gnd speed):\t%d\n", item->id, item->value);
+    printf("\"%d\": [\"platform gnd speed\", \"%d\"], ", item->id, item->value);
     break;
   case 0x39: /* ground range */
     item->value = libklv_readUINT32(klv_ctx);
     /* Map 0..(2^32-1) to 0..5000000 */
     item->mapped_val = libklv_map_val((double)item->value, 0.0, 4294967295.0, 0.0, 5000000.0);
-    printf("  0x%02X (ground range):\t%d\n", item->id, item->mapped_val);
+    printf("\"%d\": [\"ground range\", \"%d\"], ", item->id, item->mapped_val);
     break;
   case 0x3A: /* platform fuel remaining */
     item->value = libklv_readUINT16(klv_ctx);
     /* Map 0..(2^16-1) to 0..10000 */
     item->mapped_val = libklv_map_val((double)item->value, 0.0, 65535.0, 0.0, 10000.0);
-    printf("  0x%02X (platform fuel remain):\t%d\n", item->id, item->mapped_val);
+    printf("\"%d\": [\"platform fuel remain\", \"%d\"], ", item->id, item->mapped_val);
     break;
   case 0x3B: /* platform call sign */
     item->data = libklv_strdup(klv_ctx, item->len);
-    printf("  0x%02X (platform call sign):\t%s\n", item->id, item->data);
+    printf("\"%d\": [\"platform call sign\", \"%s\"], ", item->id, item->data);
     break;
   case 0x3C: /* weapon load */
     item->value = libklv_readUINT16(klv_ctx);
@@ -482,7 +509,7 @@ static int decode_klv_values(klv_item_t *item, klv_ctx_t *klv_ctx) {
     substn_num = (item->value >> 8) - ((item->value >> 8) & 0x0F);
     wpn_type = (item->value & 0x00FF) - ((item->value >> 4) & 0x0F);
     wpn_var = (item->value & 0x00FF) - (item->value & 0x000F);
-    printf("  0x%02X (weapon load):\t%d|%d|%d|%d\n", item->id, stn_num, substn_num, wpn_type, wpn_var);
+    printf("\"%d\": [\"weapon load\", \"%d|%d|%d|%d\"], ", item->id, stn_num, substn_num, wpn_type, wpn_var);
     break;
   case 0x3D: /* weapon fired */
     item->value = libklv_readUINT8(klv_ctx);
@@ -493,11 +520,11 @@ static int decode_klv_values(klv_item_t *item, klv_ctx_t *klv_ctx) {
      */
     stn_num = (item->value) - ((item->value >> 4) & 0x0F);
     substn_num = (item->value) - (item->value & 0x0F);
-    printf("  0x%02X (weapon fired):\t%d|%d\n", item->id, stn_num, substn_num);
+    printf("\"%d\": [\"weapon fired\", \"%d|%d\"], ", item->id, stn_num, substn_num);
     break;
   case 0x3E: /* laser prf code */
     item->value = libklv_readUINT16(klv_ctx);
-    printf("  0x%02X (laser prf code):\t%d\n", item->id, item->value);
+    printf("\"%d\": [\"laser prf code\", \"%d\"], ", item->id, item->value);
     break;
   case 0x3F: /* sensor field of view name */
     item->value = libklv_readUINT8(klv_ctx);
@@ -527,17 +554,17 @@ static int decode_klv_values(klv_item_t *item, klv_ctx_t *klv_ctx) {
       item->data = strdup("4x Ultranarrow");
       break;
     }
-    printf("  0x%02X (sensor fov name):\t%s", item->id, item->data);
+    printf("\"%d\": [\"sensor fov name\", \"%s", item->id, item->data);
     break;
   case 0x40: /* platform magnetic heading angle */
     item->value = libklv_readUINT16(klv_ctx);
     /* Map 0..(2^16-1) to 0..360 */
     item->mapped_val = libklv_map_val((double)item->value, 0.0, 65535.0, 0.0, 360.0);
-    printf("  0x%02X (platform mag head ang):\t%.12f\n", item->id, item->mapped_val);
+    printf("\"%d\": [\"platform mag head ang\", \"%.12f\"], ", item->id, item->mapped_val);
     break;
   case 0x41: /* uas ls version number */
     item->value = libklv_readUINT8(klv_ctx);
-    printf("  0x%02X (uas ls version num):\tST0601.%d\n", item->id, item->value);
+    printf("\"%d\": [\"uas ls version num\", \"ST0601.%d\"], ", item->id, item->value);
     break;
   case 0x42: /* target location covariance matrix */
     /* TODO: implement in the future. According to ST0601.8 this field is TBD */
@@ -547,33 +574,33 @@ static int decode_klv_values(klv_item_t *item, klv_ctx_t *klv_ctx) {
     item->signed_val = libklv_readINT32(klv_ctx);
     /* LAT: Map -(2^31-1)..(2^31-1) to +/-90 */
     item->mapped_val = libklv_map_val((double)item->signed_val, -2147483647.0, 2147483647.0, -90.0, 90.0);
-    printf("  0x%02X (alt platfm latitude):\t%.14f\n", item->id, item->mapped_val);
+    printf("\"%d\": [\"alt platfm latitude\", \"%.14f\"], ", item->id, item->mapped_val);
     break;
   case 0x44: /* alternate platform longitude */
     item->signed_val = libklv_readINT32(klv_ctx);
     /* LAT: Map -(2^31-1)..(2^31-1) to +/-180 */
     item->mapped_val = libklv_map_val((double)item->signed_val, -2147483647.0, 2147483647.0, -180.0, 180.0);
-    printf("  0x%02X (alt platfm longitude):\t%.14f\n", item->id, item->mapped_val);
+    printf("\"%d\": [\"alt platfm longitude\", \"%.14f\"], ", item->id, item->mapped_val);
     break;
   case 0x45: /* alternate platform altitude */
     item->value = libklv_readUINT16(klv_ctx);
     /* Map 0..(2^16-1) to -900..19,000 */
     item->mapped_val = libklv_map_val((double)item->value, 0.0, 65535.0, -900.0, 19000.0);
-    printf("  0x%02X (alt altitude):\t%.12f\n", item->id, item->mapped_val);
+    printf("\"%d\": [\"alt altitude\", \"%.12f\"], ", item->id, item->mapped_val);
     break;
   case 0x46: /* alternate platform name */
     item->data = libklv_strdup(klv_ctx, item->len);
-    printf("  0x%02X (alt pltfrm name):\t%s", item->id, item->data);
+    printf("\"%d\": [\"alt pltfrm name\", \"%s", item->id, item->data);
     break;
   case 0x47: /* alternate platform heading */
     item->value = libklv_readUINT16(klv_ctx);
     /* Map 0..(2^16-1) to 0..360 */
     item->mapped_val = libklv_map_val((double)item->value, 0.0, 65535.0, 0.0, 360.0);
-    printf("  0x%02X (platform heading ang):\t%.15f\n", item->id, item->mapped_val);
+    printf("\"%d\": [\"platform heading ang\", \"%.15f\"], ", item->id, item->mapped_val);
     break;
   case 0x48: /* event start time */
     item->value = libklv_readUINT64(klv_ctx);
-    printf("  0x%02X (event start time):\t%llu\n", item->id, item->value);
+    printf("\"%d\": [\"event start time\", \"%llu\"], ", item->id, item->value);
     break;
   case 0x49: /* rvt local set */
     item->data = malloc(item->len);
@@ -587,13 +614,13 @@ static int decode_klv_values(klv_item_t *item, klv_ctx_t *klv_ctx) {
     item->value = libklv_readUINT16(klv_ctx);
     /* Map 0..(2^16-1) to -900..19000 */
     item->mapped_val = libklv_map_val((double)item->value, 0.0, 65535.0, -900.0, 19000.0);
-    printf("  0x%02X (sensor ellip ht.):\t%.15f\n", item->id, item->mapped_val);
+    printf("\"%d\": [\"sensor ellip ht.\", \"%.15f\"], ", item->id, item->mapped_val);
     break;
   case 0x4C: /* alternate platform ellipsoid height */
     item->value = libklv_readUINT16(klv_ctx);
     /* Map 0..(2^16-1) to -900..19000 */
     item->mapped_val = libklv_map_val((double)item->value, 0.0, 65535.0, -900.0, 19000.0);
-    printf("  0x%02X (alt pltfm elpsd ht.):\t%.15f\n", item->id, item->mapped_val);
+    printf("\"%d\": [\"alt pltfm elpsd ht.\", \"%.15f\"], ", item->id, item->mapped_val);
     break;
   case 0x4D: /* operational mode */
     item->value = libklv_readUINT8(klv_ctx);
@@ -617,7 +644,7 @@ static int decode_klv_values(klv_item_t *item, klv_ctx_t *klv_ctx) {
       item->data = strdup("Test");
       break;
     }
-    printf("  0x%02X (operational mode):\t%s", item->id, item->data);
+    printf("\"%d\": [\"operational mode\", \"%s", item->id, item->data);
     break;
   case 0x4E: /* frame center height above ellipsoid */
     item->value = libklv_readUINT16(klv_ctx);
@@ -712,7 +739,7 @@ static int decode_klv_values(klv_item_t *item, klv_ctx_t *klv_ctx) {
     klv_ctx->buf_ptr += item->len;
     break;
   default:
-    printf("  KEY NOT HANDLED: 0x%02X", item->id);
+    fprintf(stderr, "  KEY NOT HANDLED: 0x%02X", item->id);
     printf("\n");
     break;
   }
@@ -742,7 +769,7 @@ static uint64_t klv_get_ber_length(klv_ctx_t *p) {
 /*****************************************************************************
  * sync_to_klv_key
  *****************************************************************************/
-static int sync_to_klv_key(uint8_t *p, uint16_t len, klv_ctx_t *klv_ctx) {
+static int sync_to_klv_key(klv_ctx_t *klv_ctx) {
   for (int i = 0; i < klv_ctx->buffer_size; i++) {
     if (klv_ctx->buffer[i] == klv_universal_key[0]) {
       /* check for 16-byte KLV unique identifier */
@@ -838,20 +865,21 @@ int libklv_parse_data(uint8_t *p_data, uint16_t pkt_len, klv_ctx_t *klv_ctx) {
   int ts_cc = (klv_ctx->buffer[3] & 0x0f);
 
   /* sync klv context with the start of klv key within the metadata packet */
-  if (sync_to_klv_key(NULL, 0, klv_ctx) < 0) {
-    //        printf("[!] KLV key not found within stream %d\n", ts_pid);
+  if (sync_to_klv_key(klv_ctx) < 0) {
+    //        printf("[!] KLV key not found within stream %d\"], ", ts_pid);
     return -1;
   }
 
-  printf("\n[+] pid %u (0x%04x), cc %d\n", ts_pid, ts_pid, ts_cc);
+  // printf("\n[+] pid %u (0x%04x), cc %d\"], ", ts_pid, ts_pid, ts_cc);
 
   /* packet length follows 16-byte uid */
   /* TODO: confirm this correctly reads for a short BER packet length */
   klv_ctx->payload_len = klv_get_ber_length(klv_ctx);
 
   /* print header */
-  printf("  KEY                               VALUE\n");
-  printf("  ---------------------------------------\n");
+  // printf("  KEY                               VALUE\n");
+  // printf("  ---------------------------------------\n");
+  printf("{");
 
   /* iterate through the payload and decode the fields */
   while (klv_ctx->buf_ptr < klv_ctx->buf_end) {
@@ -869,5 +897,5 @@ int libklv_parse_data(uint8_t *p_data, uint16_t pkt_len, klv_ctx_t *klv_ctx) {
   /* calculate checksum. According to ST0601.1, packet should be discarded if calculated checksum doesn't match embedded value */
   /* TODO: calculate checksum */
   if (has_valid_checksum(klv_ctx) == false)
-    printf("Invalid checksum\n");
+    fprintf(stderr, "Invalid checksum\n");
 }

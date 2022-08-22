@@ -64,10 +64,10 @@
     "typeinfo": "cpp",
     "variant": "cpp",
     "*.def": "c",
-    "config.h": "c"
+    "config.h": "c",
+    "klv_item.h": "c"
   },
   "editor.formatOnSave": true,
   "C_Cpp.formatting": "clangFormat",
-  "C_Cpp.default.configurationProvider": "ms-vscode.cmake-tools",
-  "sonarlint.pathToCompileCommands": "${workspaceFolder}/build/compile_commands.json"
+  "C_Cpp.default.configurationProvider": "ms-vscode.cmake-tools"
 }

@@ -5,7 +5,7 @@
       "type": "cppdbg",
       "request": "launch",
       "program": "${workspaceFolder}/build/KlvParser",
-      "args": ["<", "${workspaceFolder}/../klv.bin"],
+      "args": ["<", "${workspaceFolder}/../klv2.bin"],
       "stopAtEntry": false,
       "externalConsole": false,
       "MIMode": "gdb",
