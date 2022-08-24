@@ -1,0 +1,65 @@
+{
+  "configurations": [
+    {
+      "name": "KlvParser",
+      "type": "cppdbg",
+      "request": "launch",
+      "program": "${workspaceFolder}/build/KlvParser",
+      "args": ["<", "${workspaceFolder}/../klv2.bin"],
+      "stopAtEntry": false,
+      "externalConsole": false,
+      "MIMode": "gdb",
+      "setupCommands": [
+        {
+          "description": "Enable pretty-printing for gdb",
+          "text": "-enable-pretty-printing",
+          "ignoreFailures": true
+        },
+        {
+          "description": "Set Disassembly Flavor to Intel",
+          "text": "-gdb-set disassembly-flavor intel",
+          "ignoreFailures": true
+        }
+      ],
+      "environment": [
+        { "name": "config", "value": "Debug" },
+        {
+          "name": "LD_LIBRARY_PATH",
+          "value": "${workspaceFolder}/build/bin:$LD_LIBRARY_PATH"
+        }
+      ],
+      "cwd": "${workspaceFolder}/build"
+    },
+    {
+      "name": "OtherKlvParser",
+      "type": "cppdbg",
+      "request": "launch",
+      "program": "${workspaceFolder}/build/OtherKlvParser",
+      "args": ["<", "${workspaceFolder}/../klv.bin"],
+      "stopAtEntry": false,
+      "externalConsole": false,
+      "MIMode": "gdb",
+      "setupCommands": [
+        {
+          "description": "Enable pretty-printing for gdb",
+          "text": "-enable-pretty-printing",
+          "ignoreFailures": true
+        },
+        {
+          "description": "Set Disassembly Flavor to Intel",
+          "text": "-gdb-set disassembly-flavor intel",
+          "ignoreFailures": true
+        }
+      ],
+      "environment": [
+        { "name": "config", "value": "Debug" },
+        {
+          "name": "LD_LIBRARY_PATH",
+          "value": "${workspaceFolder}/build/bin:$LD_LIBRARY_PATH"
+        }
+      ],
+      "cwd": "${workspaceFolder}/build"
+    }
+  ],
+  "version": "2.0.0"
+}

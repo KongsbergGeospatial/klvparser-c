@@ -1,0 +1,2 @@
+#define KlvParser_VERSION_MAJOR @KlvParser_VERSION_MAJOR@
+#define KlvParser_VERSION_MINOR @KlvParser_VERSION_MINOR@
