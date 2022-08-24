@@ -166,7 +166,7 @@ static int decode_klv_values(klv_item_t *item, klv_ctx_t *klv_ctx, uint64_t *cur
       struct timespec ts;
       // Extract milliseconds from date
       timespec_get(&ts, TIME_UTC);
-      uint milliseconds = (item->value % 1000000) / 1000;
+      uint16_t milliseconds = (item->value % 1000000) / 1000;
       ts.tv_sec = item->value / 1000000;
       ts.tv_nsec = milliseconds * 1000000;
 
