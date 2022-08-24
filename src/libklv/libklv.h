@@ -44,7 +44,7 @@ typedef struct klv_ctx_s {
  * Global prototypes
  */
 klv_ctx_t *libklv_init();
-int libklv_parse_data(uint8_t *p_data, uint16_t pkt_len, klv_ctx_t *klv_ctx);
+int libklv_parse_data(klv_ctx_t *klv_ctx);
 void libklv_cleanup(klv_ctx_t *ctx);
 
 #endif // LIBKLV_H_INCLUDED
