@@ -1,3 +1,10 @@
+/**
+ * other_klvparser.c: C-based KLV to JSON converter
+ * @author Kongsberg Geospatial Ltd.
+ * @author www.kongsberggeospatial.com
+ * @copyright 2022 Kongsberg Geospatial Ltd.
+ */
+
 #include <stdio.h>
 #include <stdlib.h>
 

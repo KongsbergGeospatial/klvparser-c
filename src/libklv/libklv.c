@@ -6,7 +6,7 @@
  * Local prototypes
  */
 static uint64_t klv_get_ber_length(klv_ctx_t *p);
-static int decode_klv_values(klv_item_t *item, klv_ctx_t *klv_ctx);
+static int decode_klv_values(klv_item_t *item, klv_ctx_t *klv_ctx, uint64_t *current_klv_start);
 static double libklv_map_val(double value, double a, double b, double targetA, double targetB);
 static int sync_to_klv_key(klv_ctx_t *klv_ctx);
 static inline uint64_t libklv_readUINT64(klv_ctx_t *p);
@@ -14,7 +14,7 @@ static inline uint32_t libklv_readUINT32(klv_ctx_t *p);
 static inline uint16_t libklv_readUINT16(klv_ctx_t *p);
 static inline uint8_t libklv_readUINT8(klv_ctx_t *p);
 static char *libklv_strdup(klv_ctx_t *src, uint8_t len);
-static bool has_valid_checksum(const klv_ctx_t *ctx);
+static bool has_valid_checksum(const klv_ctx_t *ctx, const uint64_t offset, const uint64_t len);
 
 /*****************************************************************************
  * libklv_read
@@ -122,7 +122,7 @@ static char *libklv_strdup(klv_ctx_t *src, uint8_t len) {
 /*****************************************************************************
  * decode_klv_values
  *****************************************************************************/
-static int decode_klv_values(klv_item_t *item, klv_ctx_t *klv_ctx) {
+static int decode_klv_values(klv_item_t *item, klv_ctx_t *klv_ctx, uint64_t *current_klv_start) {
   uint8_t stn_num;
   uint8_t substn_num;
   uint8_t wpn_type;
@@ -134,9 +134,24 @@ static int decode_klv_values(klv_item_t *item, klv_ctx_t *klv_ctx) {
     klv_ctx->checksum = (uint16_t)item->value;
     printf("\"%d\": [\"checksum\", \"%ld\"]", item->id, item->value);
     printf("}\n");
+
+    // Get the start and end addresses of a sub-packet inside a KLV packet
+    uint8_t *last_index = (klv_ctx->buf_ptr);
+    uint8_t *start_of_klv = &klv_ctx->buffer[*current_klv_start];
+
+    // Calculate the length of this sub-packet
+    uint64_t len = (uint64_t)last_index - (uint64_t)start_of_klv;
+
+    // Run a checksum on the subpacket to verify integrity
+    if (has_valid_checksum(klv_ctx, *current_klv_start, len) == false) {
+      fprintf(stderr, "Invalid checksum\n");
+    } else {
+      fprintf(stderr, "Valid Checksum!\n");
+    }
     if (sync_to_klv_key(klv_ctx) < 0) {
       return -1;
     }
+    *current_klv_start += len;
     klv_ctx->payload_len = klv_get_ber_length(klv_ctx);
     if (klv_ctx->buf_ptr < klv_ctx->buf_end) {
       printf("{");
@@ -498,7 +513,7 @@ static int decode_klv_values(klv_item_t *item, klv_ctx_t *klv_ctx) {
     break;
   case 0x3C: /* weapon load */
     item->value = libklv_readUINT16(klv_ctx);
-    /* TODO: figure out weapon variants and type names */
+    // TODO: figure out weapon variants and type names
     /*       byte 1           byte 2
      * +--------+--------+--------+--------+
      * |  nib1  |  nib2  |  nib1  |  nib2  |
@@ -572,7 +587,7 @@ static int decode_klv_values(klv_item_t *item, klv_ctx_t *klv_ctx) {
     printf("\"%d\": [\"uas ls version num\", \"ST0601.%lu\"], ", item->id, item->value);
     break;
   case 0x42: /* target location covariance matrix */
-    /* TODO: implement in the future. According to ST0601.8 this field is TBD */
+    // TODO: implement in the future. According to ST0601.8 this field is TBD
     klv_ctx->buf_ptr += item->len;
     break;
   case 0x43: /* alternate platform latitude */
@@ -680,7 +695,7 @@ static int decode_klv_values(klv_item_t *item, klv_ctx_t *klv_ctx) {
     printf("\"%d\": [\"sensor east velocity\", \"%.14f\"], ", item->id, item->mapped_val);
     break;
   case 0x51: /* image horizon pixel pack */
-    /* TODO: implement decoding this */
+    // TODO: implement decoding this
     klv_ctx->buf_ptr += item->len;
     break;
   case 0x52: /* corner latitude point 1 (full) */
@@ -756,16 +771,16 @@ static int decode_klv_values(klv_item_t *item, klv_ctx_t *klv_ctx) {
     printf("\"%d\": [\"platform sideslip angle (full)\", \"%.14f\"], ", item->id, item->mapped_val);
     break;
   case 0x5E: /* miis core item->identifier */
-    /* TODO: implement based off of ST 1204 standards document (http://www.gwg.nga.mil/) */
+    // TODO: implement based off of ST 1204 standards document (http://www.gwg.nga.mil/)
     klv_ctx->buf_ptr += item->len;
     break;
   case 0x5F: /* sar motion imagery metadata */
-    /* TODO: implement based off of ST 1206 standards document (http://www.gwg.nga.mil/) */
+    // TODO: implement based off of ST 1206 standards document (http://www.gwg.nga.mil/)
     klv_ctx->buf_ptr += item->len;
     break;
   case 0x60: /* target width extended */
     /* According to ST1601.9 the conversion formula is in MISB ST 1201. */
-    /* TODO: implement appropriate conversion */
+    // TODO: implement appropriate conversion
     klv_ctx->buf_ptr += item->len;
     break;
   default:
@@ -827,12 +842,12 @@ static void delete_klv_item_list(klv_item_t *items) {
 }
 
 /*****************************************************************************
- * libklv_cleanup
+ * has_valid_checksum
  *****************************************************************************/
-static bool has_valid_checksum(const klv_ctx_t *ctx) {
+static bool has_valid_checksum(const klv_ctx_t *ctx, const uint64_t offset, const uint64_t len) {
   uint16_t bcc = 0;
   /* sum each 16-bit chunk within the buffer into a checksum */
-  for (uint64_t i = 0; i < ctx->payload_len - 2; i++) {
+  for (uint64_t i = offset; i < offset + len - 2; i++) {
     bcc += ctx->buffer[i] << (8 * ((i + 1) % 2));
   }
   return (bcc == ctx->checksum) ? true : false;
@@ -843,7 +858,7 @@ static bool has_valid_checksum(const klv_ctx_t *ctx) {
  *****************************************************************************/
 int libklv_update_ctx_buffer(klv_ctx_t *ctx, void *src, size_t len) {
   if (ctx->buffer != NULL)
-    /* TODO: reallocate buffer instead of just freeing it */
+    // TODO: reallocate buffer instead of just freeing it
     free(ctx->buffer);
 
   ctx->buffer = malloc(len);
@@ -884,6 +899,7 @@ void libklv_cleanup(klv_ctx_t *ctx) {
 int libklv_parse_data(klv_ctx_t *klv_ctx) {
   klv_item_t *p_tmp_item = NULL; /* temporary pointer for iterating through the klv items list */
   uint8_t bytes_read = 0;
+  uint64_t current_klv_start = 0;
 
   /* we don't want multiple lists allocated, but we want the user to have access after a packet is parsed */
   delete_klv_item_list(&klv_ctx->klv_items);
@@ -894,7 +910,7 @@ int libklv_parse_data(klv_ctx_t *klv_ctx) {
   }
 
   /* packet length follows 16-byte uid */
-  /* TODO: confirm this correctly reads for a short BER packet length */
+  // TODO: confirm this correctly reads for a short BER packet length */
   klv_ctx->payload_len = klv_get_ber_length(klv_ctx);
 
   /* print header */
@@ -908,16 +924,12 @@ int libklv_parse_data(klv_ctx_t *klv_ctx) {
     p_tmp_item->id = *klv_ctx->buf_ptr++;
     p_tmp_item->len = (uint8_t)klv_get_ber_length(klv_ctx);
 
-    bytes_read += decode_klv_values(p_tmp_item, klv_ctx);
+    bytes_read += decode_klv_values(p_tmp_item, klv_ctx, &current_klv_start);
 
     list_add_tail(&p_tmp_item->list, &klv_ctx->klv_items.list);
   }
 
   /* calculate checksum. According to ST0601.1, packet should be discarded if calculated checksum doesn't match embedded value */
-  /* TODO: calculate checksum */
-  if (has_valid_checksum(klv_ctx) == false) {
-    fprintf(stderr, "Invalid checksum\n");
-  }
 
   return bytes_read;
 }
