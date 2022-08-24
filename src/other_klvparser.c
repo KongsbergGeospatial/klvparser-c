@@ -12,11 +12,13 @@
 #include "libklv/libklv.h"
 #include "libklv/list.h"
 
-int read_data(uint8_t *buffer, FILE *in, size_t size);
+const size_t BYTES_IN_A_MEGABYTE = 1048576;
+
+int read_data(uint8_t *buffer, FILE *in, size_t *size);
 
 int main(int argc, char **argv) {
   uint8_t *binary = NULL;
-  size_t data_size = 0;
+  size_t data_size = UINT32_MAX;
 
   if (argc > 1) {
     // The input file has been passed in the command line.
@@ -27,7 +29,7 @@ int main(int argc, char **argv) {
       data_size = ftell(in_file);
       rewind(in_file);
       binary = (uint8_t *)malloc((sizeof(char)) * data_size);
-      read_data(binary, in_file, data_size);
+      read_data(binary, in_file, &data_size);
       fclose(in_file);
     } else {
       // Deal with error condition
@@ -35,11 +37,8 @@ int main(int argc, char **argv) {
   } else {
     // No input file has been passed in the command line.
     // Read the data from stdin (std::cin).
-    fseek(stdin, 0, SEEK_END);
-    data_size = ftell(stdin);
-    rewind(stdin);
-    binary = (uint8_t *)malloc((sizeof(char)) * data_size);
-    read_data(binary, stdin, data_size);
+    binary = (uint8_t *)malloc((sizeof(uint8_t)) * BYTES_IN_A_MEGABYTE);
+    read_data(binary, stdin, &data_size);
   }
   if (binary) {
     klv_ctx_t *context = libklv_init();
@@ -62,18 +61,23 @@ int main(int argc, char **argv) {
   return EXIT_SUCCESS;
 }
 
-int read_data(uint8_t *buffer, FILE *in, size_t size) {
+int read_data(uint8_t *buffer, FILE *in, size_t *size) {
   uint64_t result = 0;
+  size_t bytes_to_read = *size == UINT64_MAX ? BYTES_IN_A_MEGABYTE : *size;
   if (in) {
-    for (size_t i = 0; i < size; i++) {
+    for (size_t i = 0; i < bytes_to_read; i++) {
+      uint64_t old_result = result;
       result += fread(buffer + i, 1, 1, in);
+      if (result == old_result) {
+        break;
+      }
     }
-    if (result < size) {
-      fprintf(stderr, "Only able to load %ld of %ld bytes\n", result, size);
+    if (result < bytes_to_read) {
+      fprintf(stderr, "Only able to load %ld of %ld bytes\n", result, *size);
+      *size = result;
       return -1;
     } else {
-
-      fprintf(stderr, "Binary data loaded with size %ld\n", size);
+      fprintf(stderr, "Binary data loaded with size %ld\n", *size);
     }
   }
 
