@@ -47,15 +47,13 @@ int main(int argc, char **argv) {
     context->buf_ptr = binary;
     context->buf_end = &binary[data_size];
 
-    int result = libklv_parse_data(context);
+    libklv_parse_data(context);
 
     // Free the KLV Data
     libklv_cleanup(context);
 
     // Free the packet data
     free(binary);
-
-    return result;
   }
 
   return EXIT_SUCCESS;
