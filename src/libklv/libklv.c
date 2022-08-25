@@ -1,4 +1,5 @@
 #include "libklv.h"
+#include <float.h>
 #include <stdint.h>
 #include <time.h>
 
@@ -104,6 +105,10 @@ static inline int8_t libklv_readINT8(klv_ctx_t *p) {
  * map_val
  *****************************************************************************/
 static double libklv_map_val(double value, double a, double b, double targetA, double targetB) {
+  // Handle out-of-range value
+  if (value < a || value > b) {
+    return DBL_MIN;
+  }
   double t = (value - a) / (b - a);
   return (targetA + (t * (targetB - targetA)));
 }
