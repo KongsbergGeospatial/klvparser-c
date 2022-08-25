@@ -18,7 +18,7 @@ int read_data(uint8_t *buffer, FILE *in, size_t *size);
 
 int main(int argc, char **argv) {
   uint8_t *binary = NULL;
-  size_t data_size = UINT64_MAX;
+  size_t data_size = UINT32_MAX;
 
   if (argc > 1) {
     // The input file has been passed in the command line.
@@ -61,7 +61,7 @@ int main(int argc, char **argv) {
 
 int read_data(uint8_t *buffer, FILE *in, size_t *size) {
   uint64_t result = 0;
-  size_t bytes_to_read = *size == UINT64_MAX ? BYTES_IN_A_MEGABYTE : *size;
+  size_t bytes_to_read = *size == UINT32_MAX ? BYTES_IN_A_MEGABYTE : *size;
   if (in) {
     for (size_t i = 0; i < bytes_to_read; i++) {
       uint64_t old_result = result;
@@ -71,8 +71,8 @@ int read_data(uint8_t *buffer, FILE *in, size_t *size) {
       }
     }
     if (result < bytes_to_read) {
-      if (*size == UINT64_MAX) {
-        fprintf(stderr, "Binary data loaded with size %ld\n", *size);
+      if (*size == UINT32_MAX) {
+        fprintf(stderr, "Binary data loaded with size %ld\n", result);
       } else {
         fprintf(stderr, "Only able to load %ld of %ld bytes\n", result, *size);
       }
