@@ -15,7 +15,7 @@ static inline uint32_t libklv_readUINT32(klv_ctx_t *p);
 static inline uint16_t libklv_readUINT16(klv_ctx_t *p);
 static inline uint8_t libklv_readUINT8(klv_ctx_t *p);
 static char *libklv_strdup(klv_ctx_t *src, uint8_t len);
-static bool has_valid_checksum(const klv_ctx_t *ctx, const uint64_t offset, const uint64_t len);
+static bool has_valid_checksum(const klv_ctx_t *ctx, uint64_t offset, uint64_t len);
 
 /*****************************************************************************
  * libklv_read
@@ -171,7 +171,7 @@ static int decode_klv_values(klv_item_t *item, klv_ctx_t *klv_ctx, uint64_t *cur
       struct timespec ts;
       // Extract milliseconds from date
       timespec_get(&ts, TIME_UTC);
-      uint16_t milliseconds = (item->value % 1000000) / 1000;
+      uint16_t milliseconds = (uint16_t)((item->value % 1000000) / 1000);
       ts.tv_sec = item->value / 1000000;
       ts.tv_nsec = milliseconds * 1000000;
 
@@ -360,16 +360,16 @@ static int decode_klv_values(klv_item_t *item, klv_ctx_t *klv_ctx, uint64_t *cur
     item->value = libklv_readUINT8(klv_ctx);
     switch (item->value) {
     case 0:
-      item->data = strdup("detector off");
+      item->data = _strdup("detector off");
       break;
     case 1:
-      item->data = strdup("no icing detected");
+      item->data = _strdup("no icing detected");
       break;
     case 2:
-      item->data = strdup("icing detected");
+      item->data = _strdup("icing detected");
       break;
     default:
-      item->data = strdup("unsupported value");
+      item->data = _strdup("unsupported value");
     }
     break;
   case 0x23: /* wind direction */
@@ -555,28 +555,28 @@ static int decode_klv_values(klv_item_t *item, klv_ctx_t *klv_ctx, uint64_t *cur
     item->value = libklv_readUINT8(klv_ctx);
     switch (item->value) {
     case 0:
-      item->data = strdup("Ultranarrow");
+      item->data = _strdup("Ultranarrow");
       break;
     case 1:
-      item->data = strdup("Narrow");
+      item->data = _strdup("Narrow");
       break;
     case 2:
-      item->data = strdup("Medium");
+      item->data = _strdup("Medium");
       break;
     case 3:
-      item->data = strdup("Wide");
+      item->data = _strdup("Wide");
       break;
     case 4:
-      item->data = strdup("Ultrawide");
+      item->data = _strdup("Ultrawide");
       break;
     case 5:
-      item->data = strdup("Narrow Medium");
+      item->data = _strdup("Narrow Medium");
       break;
     case 6:
-      item->data = strdup("2x Ultranarrow");
+      item->data = _strdup("2x Ultranarrow");
       break;
     case 7:
-      item->data = strdup("4x Ultranarrow");
+      item->data = _strdup("4x Ultranarrow");
       break;
     }
     printf("\"%d\": [\"sensor fov name\", \"%s", item->id, (char *)item->data);
@@ -658,25 +658,25 @@ static int decode_klv_values(klv_item_t *item, klv_ctx_t *klv_ctx, uint64_t *cur
     item->value = libklv_readUINT8(klv_ctx);
     switch (item->value) {
     case 0x00:
-      item->data = strdup("Other");
+      item->data = _strdup("Other");
       break;
     case 0x01:
-      item->data = strdup("Operational");
+      item->data = _strdup("Operational");
       break;
     case 0x02:
-      item->data = strdup("Training");
+      item->data = _strdup("Training");
       break;
     case 0x03:
-      item->data = strdup("Exercise");
+      item->data = _strdup("Exercise");
       break;
     case 0x04:
-      item->data = strdup("Maintenance");
+      item->data = _strdup("Maintenance");
       break;
     case 0x05:
-      item->data = strdup("Test");
+      item->data = _strdup("Test");
       break;
     default:
-      item->data = strdup("Unknown");
+      item->data = _strdup("Unknown");
       break;
     }
     printf("\"%d\": [\"operational mode\", \"%s", item->id, (char *)item->data);
