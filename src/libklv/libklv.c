@@ -137,7 +137,7 @@ static int decode_klv_values(klv_item_t *item, klv_ctx_t *klv_ctx, uint64_t *cur
   case 0x01: /* misb std 0601 checksum */
     item->value = libklv_readUINT16(klv_ctx);
     klv_ctx->checksum = (uint16_t)item->value;
-    printf("\"%d\": [\"checksum\", \"%ld\"]", item->id, item->value);
+    printf("\"%d\": [\"checksum\", \"%llu\"]", item->id, item->value);
     printf("}\n");
 
     // Get the start and end addresses of a sub-packet inside a KLV packet
@@ -210,12 +210,12 @@ static int decode_klv_values(klv_item_t *item, klv_ctx_t *klv_ctx, uint64_t *cur
   case 0x08: /* platform true airspeed */
     /* 0..255 */
     item->value = libklv_readUINT8(klv_ctx);
-    printf("\"%d\": [\"platform true airspeed\", \"%lu\"], ", item->id, item->value);
+    printf("\"%d\": [\"platform true airspeed\", \"%llu\"], ", item->id, item->value);
     break;
   case 0x09: /* platform indicated airspeed */
     /* 0..255 */
     item->value = libklv_readUINT8(klv_ctx);
-    printf("\"%d\": [\"platform indicated speed\", \"%lu\"], ", item->id, item->value);
+    printf("\"%d\": [\"platform indicated speed\", \"%llu\"], ", item->id, item->value);
     break;
   case 0x0A: /* platform designation */
     item->data = libklv_strdup(klv_ctx, item->len);
@@ -398,7 +398,7 @@ static int decode_klv_values(klv_item_t *item, klv_ctx_t *klv_ctx, uint64_t *cur
     break;
   case 0x27: /* outside air temperature */
     item->signed_val = libklv_readINT8(klv_ctx);
-    printf("\"%d\": [\"outside air temp\", \"%ld", item->id, item->signed_val);
+    printf("\"%d\": [\"outside air temp\", \"%lld", item->id, item->signed_val);
     break;
   case 0x28: /* target location latitude */
     item->signed_val = libklv_readINT32(klv_ctx);
@@ -440,12 +440,12 @@ static int decode_klv_values(klv_item_t *item, klv_ctx_t *klv_ctx, uint64_t *cur
     break;
   case 0x2F: /* generic flag data 01 */
     item->value = libklv_readUINT8(klv_ctx);
-    printf("\"%d\": [\"generic flag data 01\", {\"Laser Range\": \"%lu\",", item->id, (item->value & 0x01));
-    printf("\"Auto_Track\": \"%lu\",", (item->value & 0x02));
-    printf("\"IR_Polarity\": \"%lu\",", (item->value & 0x04));
-    printf("\"Icing_detected\": \"%lu\",", (item->value & 0x08));
-    printf("\"Slant_Range\": \"%lu\",", (item->value & 0x10));
-    printf("\"Image_Invalid\": \"%lu\"", (item->value & 0x20));
+    printf("\"%d\": [\"generic flag data 01\", {\"Laser Range\": \"%llu\",", item->id, (item->value & 0x01));
+    printf("\"Auto_Track\": \"%llu\",", (item->value & 0x02));
+    printf("\"IR_Polarity\": \"%llu\",", (item->value & 0x04));
+    printf("\"Icing_detected\": \"%llu\",", (item->value & 0x08));
+    printf("\"Slant_Range\": \"%llu\",", (item->value & 0x10));
+    printf("\"Image_Invalid\": \"%llu\"", (item->value & 0x20));
     printf("}], ");
     break;
   case 0x30: /* security local metadata set */
@@ -498,7 +498,7 @@ static int decode_klv_values(klv_item_t *item, klv_ctx_t *klv_ctx, uint64_t *cur
   case 0x38: /* platform ground speed */
     /* 0..255 */
     item->value = libklv_readUINT8(klv_ctx);
-    printf("\"%d\": [\"platform gnd speed\", \"%lu\"], ", item->id, item->value);
+    printf("\"%d\": [\"platform gnd speed\", \"%llu\"], ", item->id, item->value);
     break;
   case 0x39: /* ground range */
     item->value = libklv_readUINT32(klv_ctx);
@@ -549,7 +549,7 @@ static int decode_klv_values(klv_item_t *item, klv_ctx_t *klv_ctx, uint64_t *cur
     break;
   case 0x3E: /* laser prf code */
     item->value = libklv_readUINT16(klv_ctx);
-    printf("\"%d\": [\"laser prf code\", \"%lu\"], ", item->id, item->value);
+    printf("\"%d\": [\"laser prf code\", \"%llu\"], ", item->id, item->value);
     break;
   case 0x3F: /* sensor field of view name */
     item->value = libklv_readUINT8(klv_ctx);
@@ -589,7 +589,7 @@ static int decode_klv_values(klv_item_t *item, klv_ctx_t *klv_ctx, uint64_t *cur
     break;
   case 0x41: /* uas ls version number */
     item->value = libklv_readUINT8(klv_ctx);
-    printf("\"%d\": [\"uas ls version num\", \"ST0601.%lu\"], ", item->id, item->value);
+    printf("\"%d\": [\"uas ls version num\", \"ST0601.%llu\"], ", item->id, item->value);
     break;
   case 0x42: /* target location covariance matrix */
     // TODO: implement in the future. According to ST0601.8 this field is TBD
@@ -625,7 +625,7 @@ static int decode_klv_values(klv_item_t *item, klv_ctx_t *klv_ctx, uint64_t *cur
     break;
   case 0x48: /* event start time */
     item->value = libklv_readUINT64(klv_ctx);
-    printf("\"%d\": [\"event start time\", \"%lu\"], ", item->id, item->value);
+    printf("\"%d\": [\"event start time\", \"%llu\"], ", item->id, item->value);
     break;
   case 0x49: /* rvt local set */
     item->data = malloc(item->len);

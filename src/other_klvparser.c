@@ -72,9 +72,9 @@ int read_data(uint8_t *buffer, FILE *in, size_t *size) {
     }
     if (result < bytes_to_read) {
       if (*size == UINT32_MAX) {
-        fprintf(stderr, "Binary data loaded with size %ld\n", result);
+        fprintf(stderr, "Binary data loaded with size %llu\n", result);
       } else {
-        fprintf(stderr, "Only able to load %ld of %ld bytes\n", result, *size);
+        fprintf(stderr, "Only able to load %llu of %ld bytes\n", result, *size);
       }
       *size = result;
       return -1;
