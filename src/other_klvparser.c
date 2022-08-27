@@ -5,6 +5,7 @@
  * @copyright 2022 Kongsberg Geospatial Ltd.
  */
 
+#include <inttypes.h>
 #include <stdio.h>
 #include <stdlib.h>
 
@@ -71,9 +72,9 @@ int read_data(uint8_t *buffer, FILE *in, size_t *size) {
     }
     if (result < bytes_to_read) {
       if (*size == UINT32_MAX) {
-        fprintf(stderr, "Binary data loaded with size %llu\n", result);
+        fprintf(stderr, "Binary data loaded with size %" PRIu64 "\n", result);
       } else {
-        fprintf(stderr, "Only able to load %llu of %zu bytes\n", result, *size);
+        fprintf(stderr, "Only able to load %" PRIu64 " of %zu bytes\n", result, *size);
       }
       *size = (size_t)result;
       return -1;

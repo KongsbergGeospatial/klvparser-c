@@ -11,6 +11,7 @@
 
 #if defined(WIN32) || defined(_WIN32) || defined(__WIN32)
 #define ISO_STRING_LEN 24
+#define strdup _strdup
 #else
 static const uint8_t ISO_STRING_LEN = 24;
 #endif
@@ -48,7 +49,7 @@ typedef struct klv_ctx_s {
 /*
  * Global prototypes
  */
-klv_ctx_t *libklv_init();
+klv_ctx_t *libklv_init(void);
 int libklv_parse_data(klv_ctx_t *klv_ctx);
 void libklv_cleanup(klv_ctx_t *ctx);
 
