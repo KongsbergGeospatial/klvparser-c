@@ -2,6 +2,7 @@
 #include <float.h>
 #include <stdint.h>
 #include <time.h>
+#include <inttypes.h>
 
 /*
  * Local prototypes
@@ -15,7 +16,7 @@ static inline uint32_t libklv_readUINT32(klv_ctx_t *p);
 static inline uint16_t libklv_readUINT16(klv_ctx_t *p);
 static inline uint8_t libklv_readUINT8(klv_ctx_t *p);
 static char *libklv_strdup(klv_ctx_t *src, uint8_t len);
-static bool has_valid_checksum(const klv_ctx_t *ctx, const uint64_t offset, const uint64_t len);
+static bool has_valid_checksum(const klv_ctx_t *ctx, uint64_t offset, uint64_t len);
 
 /*****************************************************************************
  * libklv_read
@@ -137,7 +138,7 @@ static int decode_klv_values(klv_item_t *item, klv_ctx_t *klv_ctx, uint64_t *cur
   case 0x01: /* misb std 0601 checksum */
     item->value = libklv_readUINT16(klv_ctx);
     klv_ctx->checksum = (uint16_t)item->value;
-    printf("\"%d\": [\"checksum\", \"%ld\"]", item->id, item->value);
+    printf("\"%d\": [\"checksum\", \"%" PRIu64 "\"]", item->id, item->value);
     printf("}\n");
 
     // Get the start and end addresses of a sub-packet inside a KLV packet
@@ -171,7 +172,7 @@ static int decode_klv_values(klv_item_t *item, klv_ctx_t *klv_ctx, uint64_t *cur
       struct timespec ts;
       // Extract milliseconds from date
       timespec_get(&ts, TIME_UTC);
-      uint16_t milliseconds = (item->value % 1000000) / 1000;
+      uint16_t milliseconds = (uint16_t)((item->value % 1000000) / 1000);
       ts.tv_sec = item->value / 1000000;
       ts.tv_nsec = milliseconds * 1000000;
 
@@ -210,12 +211,12 @@ static int decode_klv_values(klv_item_t *item, klv_ctx_t *klv_ctx, uint64_t *cur
   case 0x08: /* platform true airspeed */
     /* 0..255 */
     item->value = libklv_readUINT8(klv_ctx);
-    printf("\"%d\": [\"platform true airspeed\", \"%lu\"], ", item->id, item->value);
+    printf("\"%d\": [\"platform true airspeed\", \"%" PRIu64 "\"], ", item->id, item->value);
     break;
   case 0x09: /* platform indicated airspeed */
     /* 0..255 */
     item->value = libklv_readUINT8(klv_ctx);
-    printf("\"%d\": [\"platform indicated speed\", \"%lu\"], ", item->id, item->value);
+    printf("\"%d\": [\"platform indicated speed\", \"%" PRIu64 "\"], ", item->id, item->value);
     break;
   case 0x0A: /* platform designation */
     item->data = libklv_strdup(klv_ctx, item->len);
@@ -398,7 +399,7 @@ static int decode_klv_values(klv_item_t *item, klv_ctx_t *klv_ctx, uint64_t *cur
     break;
   case 0x27: /* outside air temperature */
     item->signed_val = libklv_readINT8(klv_ctx);
-    printf("\"%d\": [\"outside air temp\", \"%ld", item->id, item->signed_val);
+    printf("\"%d\": [\"outside air temp\", \"%"PRId64"\"], ", item->id, item->signed_val);
     break;
   case 0x28: /* target location latitude */
     item->signed_val = libklv_readINT32(klv_ctx);
@@ -440,12 +441,12 @@ static int decode_klv_values(klv_item_t *item, klv_ctx_t *klv_ctx, uint64_t *cur
     break;
   case 0x2F: /* generic flag data 01 */
     item->value = libklv_readUINT8(klv_ctx);
-    printf("\"%d\": [\"generic flag data 01\", {\"Laser Range\": \"%lu\",", item->id, (item->value & 0x01));
-    printf("\"Auto_Track\": \"%lu\",", (item->value & 0x02));
-    printf("\"IR_Polarity\": \"%lu\",", (item->value & 0x04));
-    printf("\"Icing_detected\": \"%lu\",", (item->value & 0x08));
-    printf("\"Slant_Range\": \"%lu\",", (item->value & 0x10));
-    printf("\"Image_Invalid\": \"%lu\"", (item->value & 0x20));
+    printf("\"%d\": [\"generic flag data 01\", {\"Laser Range\": \"%" PRIu64 "\",", item->id, (item->value & 0x01));
+    printf("\"Auto_Track\": \"%" PRIu64 "\",", (item->value & 0x02));
+    printf("\"IR_Polarity\": \"%" PRIu64 "\",", (item->value & 0x04));
+    printf("\"Icing_detected\": \"%" PRIu64 "\",", (item->value & 0x08));
+    printf("\"Slant_Range\": \"%" PRIu64 "\",", (item->value & 0x10));
+    printf("\"Image_Invalid\": \"%" PRIu64 "\"", (item->value & 0x20));
     printf("}], ");
     break;
   case 0x30: /* security local metadata set */
@@ -498,7 +499,7 @@ static int decode_klv_values(klv_item_t *item, klv_ctx_t *klv_ctx, uint64_t *cur
   case 0x38: /* platform ground speed */
     /* 0..255 */
     item->value = libklv_readUINT8(klv_ctx);
-    printf("\"%d\": [\"platform gnd speed\", \"%lu\"], ", item->id, item->value);
+    printf("\"%d\": [\"platform gnd speed\", \"%" PRIu64 "\"], ", item->id, item->value);
     break;
   case 0x39: /* ground range */
     item->value = libklv_readUINT32(klv_ctx);
@@ -549,7 +550,7 @@ static int decode_klv_values(klv_item_t *item, klv_ctx_t *klv_ctx, uint64_t *cur
     break;
   case 0x3E: /* laser prf code */
     item->value = libklv_readUINT16(klv_ctx);
-    printf("\"%d\": [\"laser prf code\", \"%lu\"], ", item->id, item->value);
+    printf("\"%d\": [\"laser prf code\", \"%" PRIu64 "\"], ", item->id, item->value);
     break;
   case 0x3F: /* sensor field of view name */
     item->value = libklv_readUINT8(klv_ctx);
@@ -589,7 +590,7 @@ static int decode_klv_values(klv_item_t *item, klv_ctx_t *klv_ctx, uint64_t *cur
     break;
   case 0x41: /* uas ls version number */
     item->value = libklv_readUINT8(klv_ctx);
-    printf("\"%d\": [\"uas ls version num\", \"ST0601.%lu\"], ", item->id, item->value);
+    printf("\"%d\": [\"uas ls version num\", \"ST0601.%" PRIu64 "\"], ", item->id, item->value);
     break;
   case 0x42: /* target location covariance matrix */
     // TODO: implement in the future. According to ST0601.8 this field is TBD
@@ -625,7 +626,7 @@ static int decode_klv_values(klv_item_t *item, klv_ctx_t *klv_ctx, uint64_t *cur
     break;
   case 0x48: /* event start time */
     item->value = libklv_readUINT64(klv_ctx);
-    printf("\"%d\": [\"event start time\", \"%lu\"], ", item->id, item->value);
+    printf("\"%d\": [\"event start time\", \"%" PRIu64 "\"], ", item->id, item->value);
     break;
   case 0x49: /* rvt local set */
     item->data = malloc(item->len);
@@ -880,7 +881,7 @@ int libklv_update_ctx_buffer(klv_ctx_t *ctx, void *src, size_t len) {
 /*****************************************************************************
  * libklv_init
  *****************************************************************************/
-klv_ctx_t *libklv_init() {
+klv_ctx_t *libklv_init(void) {
   klv_ctx_t *ctx = (klv_ctx_t *)malloc(sizeof(klv_ctx_t)); /* create context on heap */
 
   INIT_LIST_HEAD(&ctx->klv_items.list); /* initialize the items list */

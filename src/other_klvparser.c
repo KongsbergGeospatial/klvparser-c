@@ -5,12 +5,12 @@
  * @copyright 2022 Kongsberg Geospatial Ltd.
  */
 
+#include <inttypes.h>
 #include <stdio.h>
 #include <stdlib.h>
 
 #include "include/Config.h"
 #include "libklv/libklv.h"
-#include "libklv/list.h"
 
 const size_t BYTES_IN_A_MEGABYTE = 1048576;
 
@@ -43,7 +43,7 @@ int main(int argc, char **argv) {
   if (binary) {
     klv_ctx_t *context = libklv_init();
     context->buffer = binary;
-    context->buffer_size = data_size;
+    context->buffer_size = (uint16_t)data_size;
     context->buf_ptr = binary;
     context->buf_end = &binary[data_size];
 
@@ -72,14 +72,14 @@ int read_data(uint8_t *buffer, FILE *in, size_t *size) {
     }
     if (result < bytes_to_read) {
       if (*size == UINT32_MAX) {
-        fprintf(stderr, "Binary data loaded with size %ld\n", result);
+        fprintf(stderr, "Binary data loaded with size %" PRIu64 "\n", result);
       } else {
-        fprintf(stderr, "Only able to load %ld of %ld bytes\n", result, *size);
+        fprintf(stderr, "Only able to load %" PRIu64 " of %zu bytes\n", result, *size);
       }
-      *size = result;
+      *size = (size_t)result;
       return -1;
     } else {
-      fprintf(stderr, "Binary data loaded with size %ld\n", *size);
+      fprintf(stderr, "Binary data loaded with size %zu\n", *size);
     }
   }
 

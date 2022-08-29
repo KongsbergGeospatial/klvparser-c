@@ -9,9 +9,15 @@
 
 #include "list.h"
 
+#if defined(WIN32) || defined(_WIN32) || defined(__WIN32)
+#define ISO_STRING_LEN 24
+#define strdup _strdup
+#else
+static const uint8_t ISO_STRING_LEN = 24;
+#endif
+
 static const uint8_t klv_key[] = {0x06, 0x0e, 0x2b, 0x34};
 static const uint8_t klv_universal_key[] = {0x06, 0x0e, 0x2b, 0x34, 0x02, 0x0b, 0x01, 0x01, 0x0e, 0x01, 0x03, 0x01, 0x01, 0x00, 0x00, 0x00};
-static const uint8_t ISO_STRING_LEN = 24;
 
 typedef struct klv_item_s {
   uint8_t id;
@@ -43,7 +49,7 @@ typedef struct klv_ctx_s {
 /*
  * Global prototypes
  */
-klv_ctx_t *libklv_init();
+klv_ctx_t *libklv_init(void);
 int libklv_parse_data(klv_ctx_t *klv_ctx);
 void libklv_cleanup(klv_ctx_t *ctx);
 
